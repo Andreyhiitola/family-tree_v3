@@ -1,0 +1,34 @@
+{
+  "people": [
+    {
+      "id": "1",
+      "name": "Иван",
+      "surname": "Иванов",
+      "gender": "M",
+      "birthDate": "1950-01-01",
+      "deathDate": "",
+      "fatherId": null,
+      "motherId": null
+    },
+    {
+      "id": "2",
+      "name": "Мария",
+      "surname": "Иванова",
+      "gender": "F",
+      "birthDate": "1955-02-02",
+      "deathDate": "",
+      "fatherId": null,
+      "motherId": null
+    },
+    {
+      "id": "3",
+      "name": "Алексей",
+      "surname": "Иванов",
+      "gender": "M",
+      "birthDate": "1980-03-03",
+      "deathDate": "",
+      "fatherId": "1",
+      "motherId": "2"
+    }
+  ]
+}

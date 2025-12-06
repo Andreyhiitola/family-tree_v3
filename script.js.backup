@@ -1,0 +1,744 @@
+class FamilyTree {
+    constructor() {
+        this.data = { people: [] };
+        this.selectedPerson = null;
+        this.treeData = null;
+        this.zoom = null;
+        this.svg = null;
+        this.treeLayout = null;
+        this.root = null;
+        this.isModified = false;
+        this.autoSaveTimer = null;
+        this.personToDelete = null;
+        
+        this.init();
+    }
+
+    async init() {
+        if (!window.d3) {
+            console.error('D3.js не загружена!');
+            this.showNotification('Ошибка загрузки библиотек. Пожалуйста, обновите страницу.', 'error');
+            return;
+        }
+        
+        await this.loadData();
+        this.initUI();
+        this.buildTree();
+        this.updateStats();
+        this.startAutoSave();
+    }
+
+    async loadData() {
+        try {
+            const savedData = localStorage.getItem('familyTreeData');
+            
+            if (savedData) {
+                this.data = JSON.parse(savedData);
+                console.log('Данные загружены из LocalStorage:', this.data.people.length, 'человек');
+                this.showNotification('Данные загружены из сохраненной версии', 'success');
+            } else {
+                const response = await fetch('data.json');
+                if (response.ok) {
+                    this.data = await response.json();
+                    console.log('Данные загружены из файла:', this.data.people.length, 'человек');
+                    this.showNotification('Данные загружены успешно', 'success');
+                    this.saveToLocalStorage();
+                } else {
+                    console.log('Файл data.json не найден, создаем демо данные');
+                    this.createDemoData();
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки данных:', error);
+            this.createDemoData();
+        }
+    }
+
+    createDemoData() {
+        this.data = {
+            people: [
+                { id: '1', name: 'Иван', surname: 'Иванов', gender: 'M', birthDate: '1950-01-01', deathDate: '', fatherId: null, motherId: null },
+                { id: '2', name: 'Мария', surname: 'Иванова', gender: 'F', birthDate: '1955-02-02', deathDate: '', fatherId: null, motherId: null },
+                { id: '3', name: 'Алексей', surname: 'Иванов', gender: 'M', birthDate: '1980-03-03', deathDate: '', fatherId: '1', motherId: '2' },
+                { id: '4', name: 'Ольга', surname: 'Иванова', gender: 'F', birthDate: '1985-04-04', deathDate: '', fatherId: '1', motherId: '2' }
+            ]
+        };
+        this.saveToLocalStorage();
+        this.showNotification('Созданы демо данные. Добавьте своих родственников!', 'info');
+    }
+
+    saveToLocalStorage() {
+        localStorage.setItem('familyTreeData', JSON.stringify(this.data));
+        this.isModified = false;
+    }
+
+    showNotification(message, type = 'info') {
+        const notification = document.getElementById('notification');
+        if (notification) {
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.style.display = 'block';
+            
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+    }
+
+    initUI() {
+        this.setupSearch();
+        this.setupButtons();
+        this.initModals();
+    }
+
+    setupSearch() {
+        const searchInput = document.getElementById('search');
+        const searchResults = document.getElementById('search-results');
+        
+        if (!searchInput || !searchResults) return;
+        
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            
+            if (query.length < 2) {
+                searchResults.innerHTML = '';
+                searchResults.style.display = 'none';
+                return;
+            }
+            
+            const results = this.data.people.filter(person => 
+                `${person.name} ${person.surname}`.toLowerCase().includes(query)
+            );
+            
+            this.showSearchResults(results);
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.style.display = 'none';
+            }
+        });
+    }
+
+    showSearchResults(results) {
+        const searchResults = document.getElementById('search-results');
+        if (!searchResults) return;
+        
+        if (results.length === 0) {
+            searchResults.innerHTML = '<div class="search-result-item">Ничего не найдено</div>';
+            searchResults.style.display = 'block';
+            return;
+        }
+        
+        searchResults.innerHTML = results.map(person => `
+            <div class="search-result-item" data-id="${person.id}">
+                <i class="fas fa-${person.gender === 'M' ? 'male' : 'female'}"></i>
+                <span>${person.name} ${person.surname}</span>
+            </div>
+        `).join('');
+        
+        searchResults.style.display = 'block';
+        
+        searchResults.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const personId = item.dataset.id;
+                this.selectPerson(personId);
+                document.getElementById('search').value = '';
+                searchResults.style.display = 'none';
+            });
+        });
+    }
+
+    setupButtons() {
+        const buttons = [
+            { id: 'add-person', handler: () => this.openAddPersonModal() },
+            { id: 'edit-person', handler: () => this.openEditPersonModal(this.selectedPerson) },
+            { id: 'delete-person', handler: () => this.openDeleteModal(this.selectedPerson) },
+            { id: 'import-data', handler: () => this.importData() },
+            { id: 'export-data', handler: () => this.exportData() },
+            { id: 'reset-data', handler: () => this.resetData() }
+        ];
+        
+        buttons.forEach(btn => this.setupButton(btn.id, btn.handler));
+    }
+
+    setupButton(id, handler) {
+        const button = document.getElementById(id);
+        if (button) {
+            button.addEventListener('click', handler);
+        }
+    }
+
+    initModals() {
+        this.initPersonModal();
+        this.initDeleteModal();
+    }
+
+    initPersonModal() {
+        const personModal = document.getElementById('person-modal');
+        if (!personModal) return;
+        
+        const closePerson = personModal.querySelector('.close');
+        const cancelForm = document.getElementById('cancel-form');
+        
+        if (closePerson) {
+            closePerson.addEventListener('click', () => this.closeModal('person-modal'));
+        }
+        
+        if (cancelForm) {
+            cancelForm.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.closeModal('person-modal');
+            });
+        }
+        
+        window.addEventListener('click', (e) => {
+            if (e.target === personModal) {
+                this.closeModal('person-modal');
+            }
+        });
+        
+        const personForm = document.getElementById('person-form');
+        if (personForm) {
+            personForm.addEventListener('submit', (e) => this.handlePersonFormSubmit(e));
+        }
+    }
+
+    initDeleteModal() {
+        const deleteModal = document.getElementById('delete-modal');
+        if (!deleteModal) return;
+        
+        const closeDelete = deleteModal.querySelector('.close');
+        const cancelDelete = document.getElementById('cancel-delete');
+        
+        if (closeDelete) {
+            closeDelete.addEventListener('click', () => this.closeModal('delete-modal'));
+        }
+        
+        if (cancelDelete) {
+            cancelDelete.addEventListener('click', () => this.closeModal('delete-modal'));
+        }
+        
+        window.addEventListener('click', (e) => {
+            if (e.target === deleteModal) {
+                this.closeModal('delete-modal');
+            }
+        });
+        
+        const confirmDelete = document.getElementById('confirm-delete');
+        if (confirmDelete) {
+            confirmDelete.addEventListener('click', () => this.deletePerson());
+        }
+    }
+
+    openAddPersonModal() {
+        this.openModal('person-modal');
+        document.getElementById('form-title').textContent = 'Добавить человека';
+        document.getElementById('person-id').value = '';
+        document.getElementById('person-form').reset();
+    }
+
+    openEditPersonModal(personId) {
+        if (!personId) return;
+        
+        const person = this.data.people.find(p => p.id === personId);
+        if (!person) return;
+        
+        this.openModal('person-modal');
+        document.getElementById('form-title').textContent = 'Редактировать человека';
+        
+        const form = document.getElementById('person-form');
+        document.getElementById('person-id').value = person.id;
+        document.getElementById('name').value = person.name || '';
+        document.getElementById('surname').value = person.surname || '';
+        document.getElementById('gender').value = person.gender || 'M';
+        document.getElementById('birth-date').value = person.birthDate || '';
+        document.getElementById('death-date').value = person.deathDate || '';
+        document.getElementById('father-id').value = person.fatherId || '';
+        document.getElementById('mother-id').value = person.motherId || '';
+    }
+
+    openDeleteModal(personId) {
+        if (!personId) return;
+        
+        const person = this.data.people.find(p => p.id === personId);
+        if (!person) return;
+        
+        this.personToDelete = personId;
+        document.getElementById('delete-person-name').textContent = `${person.name} ${person.surname}`;
+        this.openModal('delete-modal');
+    }
+
+    openModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'block';
+        }
+    }
+
+    closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    handlePersonFormSubmit(e) {
+        e.preventDefault();
+        
+        const form = e.target;
+        const id = document.getElementById('person-id').value;
+        const personData = {
+            id: id || Date.now().toString(),
+            name: form.name.value.trim(),
+            surname: form.surname.value.trim(),
+            gender: form.gender.value,
+            birthDate: form['birth-date'].value,
+            deathDate: form['death-date'].value,
+            fatherId: form['father-id'].value || null,
+            motherId: form['mother-id'].value || null
+        };
+        
+        if (!personData.name || !personData.surname) {
+            alert('Имя и фамилия обязательны для заполнения');
+            return;
+        }
+        
+        const existingIndex = this.data.people.findIndex(p => p.id === personData.id);
+        
+        if (existingIndex >= 0) {
+            this.data.people[existingIndex] = personData;
+            this.showNotification('Данные обновлены', 'success');
+        } else {
+            this.data.people.push(personData);
+            this.showNotification('Человек добавлен', 'success');
+        }
+        
+        this.isModified = true;
+        this.saveToLocalStorage();
+        this.buildTree();
+        this.updateStats();
+        this.closeModal('person-modal');
+    }
+
+    deletePerson() {
+        if (!this.personToDelete) return;
+        
+        this.data.people = this.data.people.filter(p => p.id !== this.personToDelete);
+        this.isModified = true;
+        this.saveToLocalStorage();
+        this.buildTree();
+        this.updateStats();
+        this.selectedPerson = null;
+        this.showNotification('Человек удален', 'success');
+        this.closeModal('delete-modal');
+        this.personToDelete = null;
+    }
+
+    selectPerson(personId) {
+        this.selectedPerson = personId;
+        this.highlightSelectedNode();
+    }
+
+    buildTree(personId = null) {
+        try {
+            console.log('Начало построения дерева');
+            
+            if (!window.d3) {
+                console.error('D3.js не загружена!');
+                return;
+            }
+            
+            const treeContainer = document.getElementById('tree');
+            if (!treeContainer) {
+                console.error('Контейнер дерева не найден');
+                return;
+            }
+            
+            treeContainer.innerHTML = '';
+            
+            const width = treeContainer.clientWidth || 800;
+            const height = treeContainer.clientHeight || 600;
+            
+            this.svg = d3.select('#tree')
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height)
+                .call(d3.zoom().scaleExtent([0.1, 3]).on('zoom', (event) => {
+                    this.svg.select('g').attr('transform', event.transform);
+                }))
+                .append('g')
+                .attr('transform', `translate(${width / 2}, 50)`);
+            
+            this.createTreeStructure(personId);
+            
+            if (!this.treeData) {
+                treeContainer.innerHTML = '<div style="text-align:center;padding:50px;color:#666">Добавьте людей в дерево</div>';
+                return;
+            }
+            
+            this.treeLayout = d3.tree().size([height - 100, width - 200]);
+            const root = d3.hierarchy(this.treeData);
+            this.root = this.treeLayout(root);
+            
+            this.drawLinks();
+            this.drawNodes();
+            this.updateGenerationCount();
+            
+            console.log('Дерево построено успешно');
+            
+        } catch (error) {
+            console.error('Ошибка при построении дерева:', error);
+            this.showNotification('Ошибка построения дерева', 'error');
+        }
+    }
+
+    createTreeStructure(personId = null) {
+        console.log('Создание структуры дерева для personId:', personId);
+        
+        if (this.data.people.length === 0) {
+            console.warn('Нет данных о людях');
+            this.treeData = null;
+            return;
+        }
+        
+        if (!personId) {
+            const rootPeople = this.data.people.filter(p => !p.fatherId && !p.motherId);
+            
+            if (rootPeople.length === 0) {
+                personId = this.data.people[0].id;
+            } else if (rootPeople.length === 1) {
+                personId = rootPeople[0].id;
+            } else {
+                this.treeData = {
+                    name: 'Корни семьи',
+                    children: rootPeople.map(person => this.buildPersonHierarchy(person.id))
+                };
+                return;
+            }
+        }
+        
+        this.treeData = this.buildPersonHierarchy(personId);
+        console.log('Структура дерева создана:', this.treeData);
+    }
+
+    buildPersonHierarchy(personId, visited = new Set()) {
+        if (visited.has(personId)) return null;
+        visited.add(personId);
+        
+        const person = this.data.people.find(p => p.id === personId);
+        if (!person) return null;
+        
+        const node = {
+            id: person.id,
+            name: `${person.name} ${person.surname}`,
+            gender: person.gender,
+            children: []
+        };
+        
+        const children = this.data.people.filter(p => p.fatherId === personId || p.motherId === personId);
+        
+        for (const child of children) {
+            const childNode = this.buildPersonHierarchy(child.id, visited);
+            if (childNode) {
+                node.children.push(childNode);
+            }
+        }
+        
+        return node;
+    }
+
+    drawLinks() {
+        if (!this.root || !this.svg) return;
+        
+        this.svg.selectAll('.link')
+            .data(this.root.links())
+            .enter()
+            .append('path')
+            .attr('class', 'link')
+            .attr('d', d3.linkHorizontal()
+                .x(d => d.y)
+                .y(d => d.x))
+            .attr('fill', 'none')
+            .attr('stroke', '#ccc')
+            .attr('stroke-width', 1.5);
+    }
+
+    drawNodes() {
+        if (!this.root || !this.svg) return;
+        
+        const node = this.svg.selectAll('.node')
+            .data(this.root.descendants())
+            .enter()
+            .append('g')
+            .attr('class', d => `node ${d.data.gender} ${this.selectedPerson === d.data.id ? 'selected' : ''}`)
+            .attr('transform', d => `translate(${d.y},${d.x})`)
+            .on('click', (event, d) => {
+                this.selectPerson(d.data.id);
+            });
+        
+        node.append('circle')
+            .attr('r', 25)
+            .attr('fill', d => d.data.gender === 'M' ? '#4A90E2' : '#E24A8E');
+        
+        node.append('text')
+            .attr('dy', '.31em')
+            .attr('text-anchor', 'middle')
+            .attr('fill', 'white')
+            .style('font-size', '12px')
+            .text(d => d.data.name.split(' ')[0]);
+    }
+
+    highlightSelectedNode() {
+        if (!this.svg) return;
+        
+        this.svg.selectAll('.node')
+            .classed('selected', d => d.data.id === this.selectedPerson);
+    }
+
+    updateGenerationCount() {
+        if (!this.root) return;
+        
+        const generations = new Set();
+        this.root.each(d => {
+            generations.add(d.depth);
+        });
+        
+        const generationCountElement = document.getElementById("generation-count");
+        if (generationCountElement) {
+            generationCountElement.textContent = generations.size;
+        }
+    }
+
+    updateStats() {
+        const personCountElement = document.getElementById("person-count");
+        if (personCountElement) {
+            personCountElement.textContent = this.data.people.length;
+        }
+        
+        const maleCount = this.data.people.filter(p => p.gender === "M").length;
+        const femaleCount = this.data.people.filter(p => p.gender === "F").length;
+        
+        const maleCountElement = document.getElementById("male-count");
+        if (maleCountElement) {
+            maleCountElement.textContent = maleCount;
+        }
+        
+        const femaleCountElement = document.getElementById("female-count");
+        if (femaleCountElement) {
+            femaleCountElement.textContent = femaleCount;
+        }
+    }
+
+    exportData() {
+        const dataStr = JSON.stringify(this.data, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'family-tree-data.json';
+        link.click();
+        
+        URL.revokeObjectURL(url);
+        this.showNotification('Данные экспортированы', 'success');
+    }
+
+    resetData() {
+        if (confirm('Вы уверены? Все текущие данные будут удалены.')) {
+            localStorage.removeItem('familyTreeData');
+            this.data = { people: [] };
+            this.selectedPerson = null;
+            this.treeData = null;
+            this.buildTree();
+            this.updateStats();
+            this.showNotification('Данные сброшены', 'info');
+        }
+    }
+
+    startAutoSave() {
+        if (this.autoSaveTimer) {
+            clearInterval(this.autoSaveTimer);
+        }
+        
+        this.autoSaveTimer = setInterval(() => {
+            if (this.isModified) {
+                this.saveToLocalStorage();
+                console.log('Автосохранение выполнено');
+            }
+        }, 30000);
+    }
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', () => {
+    window.familyTree = new FamilyTree();
+    // Метод для импорта данных
+    importData() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const newData = JSON.parse(event.target.result);
+                    this.data = newData;
+                    this.saveToLocalStorage();
+                    this.buildTree();
+                    this.updateStats();
+                    this.showNotification('Данные успешно импортированы', 'success');
+                } catch (error) {
+                    console.error('Ошибка импорта:', error);
+                    this.showNotification('Ошибка импорта данных. Проверьте формат файла.', 'error');
+                }
+            };
+            reader.readAsText(file);
+        };
+        
+        input.click();
+    }
+
+    // Метод для экспорта данных
+    exportData() {
+        const dataStr = JSON.stringify(this.data, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'family-tree-data.json';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        URL.revokeObjectURL(url);
+        this.showNotification('Данные успешно экспортированы', 'success');
+    }
+
+    // Метод для сброса данных
+    resetData() {
+        if (confirm('Вы уверены, что хотите сбросить все данные? Это действие нельзя отменить.')) {
+            localStorage.removeItem('familyTreeData');
+            this.data = { people: [] };
+            this.selectedPerson = null;
+            this.treeData = null;
+            this.createDemoData();
+            this.showNotification('Данные сброшены, созданы демо данные', 'info');
+        }
+    }
+
+    // Метод для открытия модального окна добавления человека
+    openAddPersonModal() {
+        const modal = document.getElementById('person-modal');
+        
+        document.getElementById('form-title').textContent = 'Добавить человека';
+        document.getElementById('person-id').value = '';
+        document.getElementById('person-form').reset();
+        modal.style.display = 'block';
+    }
+
+    // Метод для открытия модального окна редактирования человека
+    openEditPersonModal() {
+            this.showNotification('Сначала выберите человека на дереве', 'warning');
+            return;
+        }
+        
+        const person = this.data.people.find(p => p.id === this.selectedPerson);
+        
+        const modal = document.getElementById('person-modal');
+        
+        document.getElementById('form-title').textContent = 'Редактировать человека';
+        document.getElementById('person-id').value = person.id;
+        document.getElementById('name').value = person.name || '';
+        document.getElementById('surname').value = person.surname || '';
+        document.getElementById('gender').value = person.gender || 'M';
+        document.getElementById('birth-date').value = person.birthDate || '';
+        document.getElementById('death-date').value = person.deathDate || '';
+        document.getElementById('father-id').value = person.fatherId || '';
+        document.getElementById('mother-id').value = person.motherId || '';
+        
+        modal.style.display = 'block';
+    }
+
+    // Метод для открытия модального окна удаления
+    openDeleteModal() {
+            this.showNotification('Сначала выберите человека на дереве', 'warning');
+            return;
+        }
+        
+        const person = this.data.people.find(p => p.id === this.selectedPerson);
+        
+        const modal = document.getElementById('delete-modal');
+        
+        document.getElementById('delete-person-name').textContent = `${person.name} ${person.surname}`;
+        modal.style.display = 'block';
+    }
+
+    // Метод для закрытия модального окна
+    closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    // Обработчик формы
+    handlePersonFormSubmit(e) {
+        e.preventDefault();
+        
+        const form = e.target;
+        const id = document.getElementById('person-id').value || Date.now().toString();
+        const personData = {
+            id: id,
+            name: form.name.value.trim(),
+            surname: form.surname.value.trim(),
+            gender: form.gender.value,
+            birthDate: form['birth-date'].value,
+            deathDate: form['death-date'].value,
+            fatherId: form['father-id'].value || null,
+            motherId: form['mother-id'].value || null
+        };
+        
+        // Проверка обязательных полей
+            alert('Пожалуйста, заполните имя и фамилию');
+            return;
+        }
+        
+        // Ищем существующего человека или добавляем нового
+        const existingIndex = this.data.people.findIndex(p => p.id === personData.id);
+        if (existingIndex >= 0) {
+            this.data.people[existingIndex] = personData;
+            this.showNotification('Данные обновлены', 'success');
+        } else {
+            this.data.people.push(personData);
+            this.showNotification('Человек добавлен', 'success');
+        }
+        
+        this.saveToLocalStorage();
+        this.buildTree();
+        this.updateStats();
+        this.closeModal('person-modal');
+    }
+
+    // Метод для удаления человека
+    deletePerson() {
+        
+        this.data.people = this.data.people.filter(p => p.id !== this.selectedPerson);
+        this.saveToLocalStorage();
+        this.buildTree();
+        this.updateStats();
+        this.selectedPerson = null;
+        this.showNotification('Человек удален', 'success');
+        this.closeModal('delete-modal');
+    }
+
+    // Метод для выбора человека
+    selectPerson(personId) {
+        this.selectedPerson = personId;
+        this.showNotification(`Выбран: ${personId}`, 'info');
+    }
+});
