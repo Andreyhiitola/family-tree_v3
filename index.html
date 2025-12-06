@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генеалогическое дерево нашей семьи</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-tree"></i> Генеалогическое дерево семьи</h1>
+            <div class="controls">
+                <div class="search-box">
+                    <input type="text" id="search" placeholder="Поиск по имени..." autocomplete="off">
+                    <div id="search-results" class="search-results"></div>
+                </div>
+                <button id="reset-view" title="Сбросить вид"><i class="fas fa-home"></i></button>
+                <button id="add-person" title="Добавить человека"><i class="fas fa-user-plus"></i></button>
+                <button id="import-excel" title="Импорт из Excel"><i class="fas fa-file-import"></i></button>
+                <button id="export-excel" title="Экспорт в Excel"><i class="fas fa-file-export"></i></button>
+                <button id="toggle-lines" title="Показать/скрыть связи"><i class="fas fa-project-diagram"></i></button>
+                <button id="help-btn" title="Помощь"><i class="fas fa-question-circle"></i></button>
+                <button id="save-data" title="Сохранить данные"><i class="fas fa-save"></i></button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="person-info" id="person-info">
+                    <div class="info-placeholder">
+                        <i class="fas fa-user"></i>
+                        <p>Выберите человека для просмотра информации</p>
+                    </div>
+                    <div class="person-actions" id="person-actions" style="display: none;">
+                        <button id="edit-person" class="btn-small"><i class="fas fa-edit"></i> Редактировать</button>
+                        <button id="delete-person" class="btn-small btn-danger"><i class="fas fa-trash"></i> Удалить</button>
+                    </div>
+                </div>
+                
+                <div class="relatives-section">
+                    <h3><i class="fas fa-sitemap"></i> Ближайшие родственники</h3>
+                    <div id="relatives-list"></div>
+                </div>
+                
+                <div class="actions">
+                    <button id="show-ancestors" class="btn"><i class="fas fa-arrow-up"></i> Показать предков</button>
+                    <button id="show-descendants" class="btn"><i class="fas fa-arrow-down"></i> Показать потомков</button>
+                    <button id="show-all-relatives" class="btn"><i class="fas fa-network-wired"></i> Все родственники</button>
+                    <button id="show-data-table" class="btn"><i class="fas fa-table"></i> Таблица данных</button>
+                </div>
+                
+                <div class="data-management">
+                    <h3><i class="fas fa-database"></i> Управление данными</h3>
+                    <div class="data-buttons">
+                        <button id="export-json" class="btn-small"><i class="fas fa-code"></i> Экспорт JSON</button>
+                        <button id="import-json" class="btn-small"><i class="fas fa-file-code"></i> Импорт JSON</button>
+                        <button id="clear-data" class="btn-small btn-danger"><i class="fas fa-trash-alt"></i> Очистить</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tree-container">
+                <div class="tree-controls">
+                    <button id="zoom-in"><i class="fas fa-search-plus"></i></button>
+                    <button id="zoom-out"><i class="fas fa-search-minus"></i></button>
+                    <button id="fit-tree"><i class="fas fa-expand-arrows-alt"></i></button>
+                    <div class="generation-info">
+                        <span id="generation-count">Поколений: 0</span>
+                        <span id="auto-save-status" class="save-status"><i class="fas fa-save"></i> Автосохранение</span>
+                    </div>
+                </div>
+                <div id="tree" class="tree"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="stats">
+                <span id="total-people">Всего людей: 0</span>
+                <span id="total-families">Семей: 0</span>
+                <span id="oldest-person">Самый старший: -</span>
+                <span id="last-save">Сохранено: никогда</span>
+            </div>
+            <div class="instructions">
+                <p><i class="fas fa-mouse-pointer"></i> Кликните на человека для выбора | <i class="fas fa-arrows-alt"></i> Перетаскивайте дерево | <i class="fas fa-mouse"></i> Колесико мыши для масштаба</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно добавления/редактирования человека -->
+    <div id="person-modal" class="modal">
+        <div class="modal-content large">
+            <span class="close">&times;</span>
+            <h2 id="modal-title"><i class="fas fa-user"></i> Добавить нового человека</h2>
+            <form id="person-form">
+                <div class="form-columns">
+                    <div class="form-column">
+                        <h3>Основная информация</h3>
+                        <div class="form-group">
+                            <label for="form-name"><i class="fas fa-signature"></i> Имя *</label>
+                            <input type="text" id="form-name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="form-surname"><i class="fas fa-id-card"></i> Фамилия *</label>
+                            <input type="text" id="form-surname" name="surname" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="form-middlename"><i class="fas fa-user-tag"></i> Отчество</label>
+                            <input type="text" id="form-middlename" name="middlename">
+                        </div>
+                        <div class="form-group">
+                            <label for="form-gender"><i class="fas fa-venus-mars"></i> Пол *</label>
+                            <select id="form-gender" name="gender" required>
+                                <option value="M">Мужской</option>
+                                <option value="F">Женский</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="form-birthDate"><i class="fas fa-birthday-cake"></i> Дата рождения</label>
+                            <input type="date" id="form-birthDate" name="birthDate">
+                        </div>
+                        <div class="form-group">
+                            <label for="form-deathDate"><i class="fas fa-cross"></i> Дата смерти</label>
+                            <input type="date" id="form-deathDate" name="deathDate">
+                        </div>
+                    </div>
+                    
+                    <div class="form-column">
+                        <h3>Семейные связи</h3>
+                        <div class="form-group">
+                            <label for="form-father"><i class="fas fa-male"></i> Отец</label>
+                            <select id="form-father" name="fatherId">
+                                <option value="">Не выбран</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="form-mother"><i class="fas fa-female"></i> Мать</label>
+                            <select id="form-mother" name="motherId">
+                                <option value="">Не выбрана</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="form-spouse"><i class="fas fa-heart"></i> Супруг(а)</label>
+                            <select id="form-spouse" name="spouseId">
+                                <option value="">Не выбран(а)</option>
+                            </select>
+                        </div>
+                        
+                        <h3>Дополнительная информация</h3>
+                        <div class="form-group">
+                            <label for="form-birthPlace"><i class="fas fa-map-marker-alt"></i> Место рождения</label>
+                            <input type="text" id="form-birthPlace" name="birthPlace">
+                        </div>
+                        <div class="form-group">
+                            <label for="form-biography"><i class="fas fa-book"></i> Биография</label>
+                            <textarea id="form-biography" name="biography" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="form-photo"><i class="fas fa-camera"></i> Фото (URL или путь)</label>
+                            <input type="text" id="form-photo" name="photo" placeholder="photos/имя.jpg">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" id="cancel-form" class="btn btn-secondary">Отмена</button>
+                    <button type="submit" id="submit-form" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Сохранить
+                    </button>
+                </div>
+                <input type="hidden" id="form-id" name="id" value="">
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно импорта Excel -->
+    <div id="import-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2><i class="fas fa-file-import"></i> Импорт из Excel</h2>
+            <div class="import-instructions">
+                <p><strong>Подготовьте Excel файл со следующими колонками:</strong></p>
+                <ul>
+                    <li>ID (уникальный номер)</li>
+                    <li>Имя (обязательно)</li>
+                    <li>Фамилия (обязательно)</li>
+                    <li>Отчество</li>
+                    <li>Пол (М или Ж)</li>
+                    <li>Дата рождения (ГГГГ-ММ-ДД)</li>
+                    <li>Дата смерти (ГГГГ-ММ-ДД)</li>
+                    <li>Место рождения</li>
+                    <li>ID_отца (ссылка на ID)</li>
+                    <li>ID_матери (ссылка на ID)</li>
+                    <li>ID_супруга (ссылка на ID)</li>
+                    <li>Биография</li>
+                    <li>Фото (путь к файлу)</li>
+                </ul>
+                <p><a href="#" id="download-template">Скачать шаблон Excel</a></p>
+            </div>
+            <div class="import-area">
+                <div class="drop-zone" id="drop-zone">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>Перетащите Excel файл сюда</p>
+                    <p>или</p>
+                    <button id="browse-excel" class="btn">Выбрать файл</button>
+                    <input type="file" id="excel-file" accept=".xlsx,.xls,.csv" style="display: none;">
+                </div>
+                <div id="import-preview" style="display: none; margin-top: 20px;">
+                    <h4>Предпросмотр данных</h4>
+                    <div class="preview-table-container">
+                        <table id="preview-table" class="preview-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Имя</th>
+                                    <th>Фамилия</th>
+                                    <th>Отчество</th>
+                                    <th>Пол</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="import-summary" id="import-summary"></div>
+                    <div class="import-actions">
+                        <button id="cancel-import" class="btn btn-secondary">Отмена</button>
+                        <button id="confirm-import" class="btn btn-primary">Импортировать</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно таблицы данных -->
+    <div id="data-table-modal" class="modal">
+        <div class="modal-content xlarge">
+            <span class="close">&times;</span>
+            <h2><i class="fas fa-table"></i> Таблица данных всех людей</h2>
+            <div class="table-controls">
+                <button id="refresh-table" class="btn-small"><i class="fas fa-sync"></i> Обновить</button>
+                <button id="add-from-table" class="btn-small"><i class="fas fa-plus"></i> Добавить</button>
+                <button id="export-table-excel" class="btn-small"><i class="fas fa-file-excel"></i> Экспорт таблицы</button>
+            </div>
+            <div class="table-container">
+                <table id="data-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Имя</th>
+                            <th>Фамилия</th>
+                            <th>Отчество</th>
+                            <th>Пол</th>
+                            <th>Дата рождения</th>
+                            <th>Дата смерти</th>
+                            <th>Отец</th>
+                            <th>Мать</th>
+                            <th>Супруг</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно подтверждения удаления -->
+    <div id="delete-modal" class="modal small">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2><i class="fas fa-exclamation-triangle"></i> Подтверждение удаления</h2>
+            <p id="delete-message">Вы действительно хотите удалить этого человека?</p>
+            <div class="delete-actions">
+                <button id="cancel-delete" class="btn btn-secondary">Отмена</button>
+                <button id="confirm-delete" class="btn btn-danger">Удалить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
