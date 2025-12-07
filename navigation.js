@@ -1,9 +1,9 @@
-// navigation.js - Упрощенный модуль навигации
+// navigation_fixed.js - Исправленный модуль навигации
 
 (function() {
     'use strict';
     
-    console.log('=== НАВИГАЦИЯ ПО ДЕРЕВУ ===');
+    console.log('=== НАВИГАЦИЯ ПО ДЕРЕВУ (ИСПРАВЛЕННАЯ) ===');
     
     // Ожидаем загрузки FamilyTree
     let initAttempts = 0;
@@ -24,6 +24,9 @@
     function initNavigation() {
         console.log('Инициализация навигации...');
         
+        // Добавляем стили
+        addStyles();
+        
         // 1. Создаем простые панели
         createPanels();
         
@@ -33,37 +36,74 @@
         // 3. Добавляем обработчики
         setupHandlers();
         
-        console.log('Навигация готова');
+        // 4. Исправляем контейнер дерева
+        fixTreeContainer();
         
-        // Показываем уведомление
-        showMessage('Навигация по дереву активна', 'info');
+        console.log('Навигация готова');
+    }
+    
+    function fixTreeContainer() {
+        // Добавляем горизонтальный скролл для дерева
+        const treeContainer = document.getElementById('tree');
+        if (treeContainer) {
+            // Обернем дерево в контейнер со скроллом
+            const wrapper = document.createElement('div');
+            wrapper.id = 'tree-scroll-wrapper';
+            wrapper.style.cssText = `
+                width: 100%;
+                height: 70vh;
+                overflow: auto;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                margin-top: 10px;
+            `;
+            
+            // Перемещаем дерево в обертку
+            treeContainer.parentNode.insertBefore(wrapper, treeContainer);
+            wrapper.appendChild(treeContainer);
+            
+            // Обновляем размеры дерева
+            setTimeout(() => {
+                if (window.familyTree && typeof window.familyTree.buildTree === 'function') {
+                    window.familyTree.buildTree();
+                }
+            }, 100);
+        }
     }
     
     function createPanels() {
-        // Панель выбора человека (справа вверху)
+        // Панель выбора человека (справа вверху) - СВОРАЧИВАЕМАЯ
         const selectorPanel = document.createElement('div');
         selectorPanel.id = 'nav-selector';
         selectorPanel.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h4 style="margin: 0;">Выбор человека</h4>
-                <button id="nav-hide-btn" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
+            <div class="nav-header" style="display: flex; justify-content: space-between; align-items: center; 
+                  cursor: pointer; padding: 10px; background: #2196F3; color: white; border-radius: 4px;">
+                <h4 style="margin: 0; font-size: 14px;">🔍 Поиск человека</h4>
+                <button id="nav-toggle-btn" style="background: none; border: none; color: white; font-size: 18px; 
+                       cursor: pointer; padding: 0 5px;">−</button>
             </div>
-            <input type="text" id="nav-search" placeholder="Поиск по имени..." 
-                   style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;">
-            <div id="nav-list" style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; padding: 5px;"></div>
+            <div id="nav-content" style="padding: 15px; background: white; display: block;">
+                <input type="text" id="nav-search" placeholder="Введите имя или фамилию..." 
+                       style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;">
+                <div id="nav-list" style="max-height: 250px; overflow-y: auto; border: 1px solid #eee; padding: 5px; 
+                     border-radius: 4px;"></div>
+                <div style="margin-top: 10px; font-size: 12px; color: #666;">
+                    <strong>Подсказка:</strong> кликните на человека в списке
+                </div>
+            </div>
         `;
         
         selectorPanel.style.cssText = `
             position: fixed;
             top: 20px;
             right: 20px;
-            width: 300px;
+            width: 280px;
             background: white;
-            padding: 15px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 15px rgba(0,0,0,0.2);
             z-index: 10000;
-            border: 2px solid #2196F3;
+            border: 1px solid #ddd;
+            overflow: hidden;
         `;
         
         document.body.appendChild(selectorPanel);
@@ -72,13 +112,21 @@
         const rootPanel = document.createElement('div');
         rootPanel.id = 'nav-current';
         rootPanel.innerHTML = `
-            <h4 style="margin-top: 0;">Текущий корень</h4>
-            <div id="nav-root-info" style="padding: 10px; background: #f5f5f5; border-radius: 4px; margin-bottom: 10px;">
-                Полное дерево
+            <div style="background: #4CAF50; color: white; padding: 10px; border-radius: 4px 4px 0 0;">
+                <h4 style="margin: 0; font-size: 14px;">🌳 Текущий корень</h4>
             </div>
-            <button id="nav-reset-btn" style="width: 100%; padding: 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                Показать всё дерево
-            </button>
+            <div style="padding: 15px; background: white;">
+                <div id="nav-root-info" style="padding: 10px; background: #f9f9f9; border-radius: 4px; 
+                     margin-bottom: 10px; border: 1px solid #eee;">
+                    <div style="text-align: center; color: #666; font-style: italic;">
+                        Полное дерево
+                    </div>
+                </div>
+                <button id="nav-reset-btn" style="width: 100%; padding: 8px; background: #4CAF50; color: white; 
+                       border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                    🔄 Показать всё дерево
+                </button>
+            </div>
         `;
         
         rootPanel.style.cssText = `
@@ -87,11 +135,10 @@
             left: 20px;
             width: 250px;
             background: white;
-            padding: 15px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 15px rgba(0,0,0,0.2);
             z-index: 9999;
-            border: 2px solid #4CAF50;
+            border: 1px solid #ddd;
         `;
         
         document.body.appendChild(rootPanel);
@@ -100,26 +147,37 @@
         const statsPanel = document.createElement('div');
         statsPanel.id = 'nav-stats';
         statsPanel.innerHTML = `
-            <h4 style="margin-top: 0;">Статистика</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-                <div style="text-align: center;">
-                    <div style="font-size: 12px; color: #666;">Всего</div>
-                    <div id="nav-total" style="font-size: 24px; font-weight: bold;">0</div>
-                </div>
-                <div style="text-align: center;">
-                    <div style="font-size: 12px; color: #666;">Мужчин</div>
-                    <div id="nav-males" style="font-size: 24px; font-weight: bold; color: #2196F3;">0</div>
-                </div>
-                <div style="text-align: center;">
-                    <div style="font-size: 12px; color: #666;">Женщин</div>
-                    <div id="nav-females" style="font-size: 24px; font-weight: bold; color: #E91E63;">0</div>
-                </div>
+            <div style="background: #9C27B0; color: white; padding: 10px; border-radius: 4px 4px 0 0;">
+                <h4 style="margin: 0; font-size: 14px;">📊 Статистика</h4>
             </div>
-            <div style="font-size: 12px; color: #666; border-top: 1px solid #eee; padding-top: 10px;">
-                <strong>Подсказки:</strong><br>
-                • Кликните на человека в дереве<br>
-                • Используйте поиск справа<br>
-                • Esc - сброс к полному дереву
+            <div style="padding: 15px; background: white;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; 
+                     margin-bottom: 15px;">
+                    <div>
+                        <div style="font-size: 11px; color: #666; text-transform: uppercase;">Всего</div>
+                        <div id="nav-total" style="font-size: 24px; font-weight: bold; color: #333;">0</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: #666; text-transform: uppercase;">Мужчин</div>
+                        <div id="nav-males" style="font-size: 24px; font-weight: bold; color: #2196F3;">0</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: #666; text-transform: uppercase;">Женщин</div>
+                        <div id="nav-females" style="font-size: 24px; font-weight: bold; color: #E91E63;">0</div>
+                    </div>
+                </div>
+                <div style="font-size: 11px; color: #666; border-top: 1px solid #eee; padding-top: 10px;">
+                    <strong>Горячие клавиши:</strong>
+                    <div style="margin-top: 5px;">
+                        • <kbd style="background: #f1f1f1; padding: 2px 4px; border-radius: 3px;">Ctrl+F</kbd> - поиск
+                    </div>
+                    <div>
+                        • <kbd style="background: #f1f1f1; padding: 2px 4px; border-radius: 3px;">Esc</kbd> - сброс
+                    </div>
+                    <div>
+                        • <kbd style="background: #f1f1f1; padding: 2px 4px; border-radius: 3px;">F2</kbd> - скрыть/показать
+                    </div>
+                </div>
             </div>
         `;
         
@@ -127,13 +185,12 @@
             position: fixed;
             bottom: 20px;
             right: 20px;
-            width: 300px;
+            width: 280px;
             background: white;
-            padding: 15px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 15px rgba(0,0,0,0.2);
             z-index: 9998;
-            border: 2px solid #9C27B0;
+            border: 1px solid #ddd;
         `;
         
         document.body.appendChild(statsPanel);
@@ -161,17 +218,25 @@
         
         list.innerHTML = filtered.map(person => `
             <div class="person-item" data-id="${person.id}" 
-                 style="padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;
-                        background: ${person.gender === 'M' ? '#e3f2fd' : '#fce4ec'};
-                        transition: all 0.2s;">
-                <div style="display: flex; align-items: center;">
-                    <div style="width: 30px; height: 30px; border-radius: 50%; background: ${person.gender === 'M' ? '#2196F3' : '#E91E63'}; 
-                         color: white; display: flex; align-items: center; justify-content: center; margin-right: 10px;">
-                        ${person.gender === 'M' ? '♂' : '♀'}
+                 style="padding: 10px; margin: 5px 0; border: 1px solid #e0e0e0; border-radius: 4px; cursor: pointer;
+                        background: white;
+                        transition: all 0.2s; border-left: 4px solid ${person.gender === 'M' ? '#2196F3' : '#E91E63'};">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center;">
+                        <div style="width: 32px; height: 32px; border-radius: 50%; background: ${person.gender === 'M' ? '#e3f2fd' : '#fce4ec'}; 
+                             color: ${person.gender === 'M' ? '#1565c0' : '#c2185b'}; display: flex; align-items: center; 
+                             justify-content: center; margin-right: 10px; font-weight: bold;">
+                            ${person.gender === 'M' ? '♂' : '♀'}
+                        </div>
+                        <div>
+                            <div style="font-weight: bold; font-size: 13px;">${person.name} ${person.surname}</div>
+                            <div style="font-size: 11px; color: #666;">
+                                ${person.birthDate ? `🎂 ${person.birthDate}` : ''}
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <strong>${person.name} ${person.surname}</strong><br>
-                        <small style="color: #666;">ID: ${person.id}</small>
+                    <div style="font-size: 12px; color: #999; background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">
+                        ID: ${person.id}
                     </div>
                 </div>
             </div>
@@ -182,6 +247,14 @@
             item.addEventListener('click', function() {
                 const personId = this.dataset.id;
                 selectPerson(personId);
+                
+                // Подсвечиваем выбранный элемент
+                list.querySelectorAll('.person-item').forEach(el => {
+                    el.style.background = 'white';
+                    el.style.boxShadow = 'none';
+                });
+                this.style.background = '#f0f7ff';
+                this.style.boxShadow = '0 2px 4px rgba(33, 150, 243, 0.2)';
             });
         });
     }
@@ -225,7 +298,7 @@
         updateCurrentRoot(person);
         
         // 4. Показываем сообщение
-        showMessage(`Дерево перестроено от ${person.name} ${person.surname}`, 'success');
+        showMessage(`🌳 Дерево перестроено от ${person.name} ${person.surname}`, 'success');
     }
     
     function updateCurrentRoot(person) {
@@ -234,18 +307,28 @@
         
         if (person) {
             rootInfo.innerHTML = `
-                <div style="margin-bottom: 5px;">
-                    <strong>${person.name} ${person.surname}</strong>
-                </div>
-                <div style="font-size: 12px;">
-                    <span style="color: ${person.gender === 'M' ? '#2196F3' : '#E91E63'};">
+                <div style="text-align: center;">
+                    <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px; color: #333;">
+                        ${person.name} ${person.surname}
+                    </div>
+                    <div style="display: inline-block; padding: 4px 12px; background: ${person.gender === 'M' ? '#e3f2fd' : '#fce4ec'}; 
+                         color: ${person.gender === 'M' ? '#1565c0' : '#c2185b'}; border-radius: 12px; font-size: 12px; 
+                         margin-bottom: 8px;">
                         ${person.gender === 'M' ? '♂ Мужской' : '♀ Женский'}
-                    </span>
-                    ${person.birthDate ? `<br>Родился: ${person.birthDate}` : ''}
+                    </div>
+                    ${person.birthDate ? `
+                        <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                            🎂 ${person.birthDate}
+                        </div>
+                    ` : ''}
                 </div>
             `;
         } else {
-            rootInfo.innerHTML = 'Полное дерево';
+            rootInfo.innerHTML = `
+                <div style="text-align: center; color: #666; font-style: italic;">
+                    Полное дерево
+                </div>
+            `;
         }
     }
     
@@ -257,7 +340,7 @@
         }
         
         updateCurrentRoot(null);
-        showMessage('Показано полное дерево', 'info');
+        showMessage('🔄 Показано полное дерево', 'info');
     }
     
     function setupHandlers() {
@@ -269,13 +352,30 @@
             });
         }
         
-        // Кнопка скрытия
-        const hideBtn = document.getElementById('nav-hide-btn');
-        if (hideBtn) {
-            hideBtn.addEventListener('click', function() {
-                const panel = document.getElementById('nav-selector');
-                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-                this.textContent = panel.style.display === 'none' ? '👁' : '×';
+        // Кнопка сворачивания панели выбора
+        const toggleBtn = document.getElementById('nav-toggle-btn');
+        const panelContent = document.getElementById('nav-content');
+        const navHeader = document.querySelector('#nav-selector .nav-header');
+        
+        if (toggleBtn && panelContent && navHeader) {
+            toggleBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (panelContent.style.display === 'none') {
+                    panelContent.style.display = 'block';
+                    this.textContent = '−';
+                    document.getElementById('nav-selector').style.width = '280px';
+                } else {
+                    panelContent.style.display = 'none';
+                    this.textContent = '+';
+                    document.getElementById('nav-selector').style.width = '200px';
+                }
+            });
+            
+            // Сворачивание по клику на заголовок
+            navHeader.addEventListener('click', function(e) {
+                if (e.target === this || e.target.tagName === 'H4') {
+                    toggleBtn.click();
+                }
             });
         }
         
@@ -306,8 +406,18 @@
             if (e.key === 'F2') {
                 e.preventDefault();
                 const panel = document.getElementById('nav-selector');
-                if (panel) {
-                    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                const content = document.getElementById('nav-content');
+                const btn = document.getElementById('nav-toggle-btn');
+                if (panel && content && btn) {
+                    if (content.style.display === 'none') {
+                        content.style.display = 'block';
+                        btn.textContent = '−';
+                        panel.style.width = '280px';
+                    } else {
+                        content.style.display = 'none';
+                        btn.textContent = '+';
+                        panel.style.width = '200px';
+                    }
                 }
             }
         });
@@ -339,12 +449,16 @@
             transform: translate(-50%, -50%);
             background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : '#2196F3'};
             color: white;
-            padding: 10px 20px;
-            border-radius: 4px;
+            padding: 12px 24px;
+            border-radius: 6px;
             z-index: 100000;
             font-weight: bold;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             animation: fadeInOut 2s;
+            font-size: 14px;
+            text-align: center;
+            min-width: 300px;
+            max-width: 400px;
         `;
         
         document.body.appendChild(msg);
@@ -357,26 +471,78 @@
         }, 2000);
     }
     
-    // Добавляем стили анимации
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes fadeInOut {
-            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-            15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-            85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-        }
+    function addStyles() {
+        // Удаляем старые стили, если есть
+        const oldStyle = document.getElementById('nav-styles');
+        if (oldStyle) oldStyle.remove();
         
-        .person-item:hover {
-            background-color: #f0f0f0 !important;
-            transform: translateX(5px);
-        }
+        const style = document.createElement('style');
+        style.id = 'nav-styles';
+        style.textContent = `
+            @keyframes fadeInOut {
+                0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+                15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            }
+            
+            .person-item:hover {
+                background-color: #f8f9fa !important;
+                transform: translateX(3px);
+                box-shadow: 0 2px 6px rgba(0,0,0,0.1) !important;
+            }
+            
+            .person-item {
+                transition: all 0.2s ease !important;
+            }
+            
+            /* Стили для контейнера дерева */
+            #tree-scroll-wrapper {
+                scrollbar-width: thin;
+                scrollbar-color: #ccc #f5f5f5;
+            }
+            
+            #tree-scroll-wrapper::-webkit-scrollbar {
+                width: 10px;
+                height: 10px;
+            }
+            
+            #tree-scroll-wrapper::-webkit-scrollbar-track {
+                background: #f5f5f5;
+                border-radius: 4px;
+            }
+            
+            #tree-scroll-wrapper::-webkit-scrollbar-thumb {
+                background: #ccc;
+                border-radius: 4px;
+            }
+            
+            #tree-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+                background: #aaa;
+            }
+            
+            /* Улучшенные стили для дерева */
+            #tree svg {
+                min-width: 100%;
+                min-height: 600px;
+                background: #f9f9f9;
+                border-radius: 4px;
+            }
+            
+            /* Адаптивность панелей */
+            @media (max-width: 1200px) {
+                #nav-selector, #nav-current, #nav-stats {
+                    max-width: 250px;
+                }
+                
+                #nav-selector.collapsed {
+                    width: 180px !important;
+                }
+            }
+        `;
         
-        .person-item {
-            transition: all 0.2s ease;
-        }
-    `;
-    document.head.appendChild(style);
+        document.head.appendChild(style);
+    }
     
     // Запускаем ожидание FamilyTree
     console.log('Ожидание FamilyTree...');
