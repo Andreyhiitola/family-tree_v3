@@ -1439,3 +1439,21 @@ window.rebuildTreeFromPerson = rebuildTreeFromPerson;
 window.resetToFullTree = resetToFullTree;
 window.createPersonSelector = createPersonSelector;
 window.updatePersonList = updatePersonList;
+
+// ===== ОТЛАДОЧНЫЙ КОД =====
+console.log("script.js загружен полностью");
+
+// Проверяем наличие элементов через 2 секунды
+setTimeout(() => {
+    console.log("Проверка состояния через 2 секунды:");
+    console.log("FamilyTree:", window.familyTree ? "существует" : "не существует");
+    console.log("Tree container:", document.getElementById("tree"));
+    console.log("SVG в дереве:", document.querySelector("#tree svg") ? "есть" : "нет");
+    
+    // Если дерево пустое, пробуем перестроить
+    if (window.familyTree && !document.querySelector("#tree svg")) {
+        console.log("Дерево пустое, пробую перестроить...");
+        window.familyTree.buildTree();
+    }
+}, 2000);
+

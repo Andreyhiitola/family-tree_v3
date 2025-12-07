@@ -556,3 +556,51 @@ body {
 .search-result-item.no-results:hover {
     background-color: transparent;
 }
+/* === FIX SVG COLLAPSE === */
+#tree,
+#tree * {
+  box-sizing: border-box !important;
+}
+
+#tree {
+  width: 100% !important;
+  height: 800px !important;
+  min-height: 600px !important;
+  overflow: visible !important;
+}
+
+#tree svg {
+  /* Размеры */
+  width: 100% !important;
+  height: 800px !important;
+  min-width: 1000px !important;
+  min-height: 600px !important;
+  max-width: none !important;
+  max-height: none !important;
+  
+  /* Отключение сжатия */
+  flex: 1 0 auto !important;
+  overflow: visible !important;
+  
+  /* Отключение анимаций */
+  transition: none !important;
+  animation: none !important;
+  
+  /* Гарантия видимости */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  
+  /* Отключение адаптивности */
+  object-fit: fill !important;
+}
+
+/* Отключить все медиа-запросы для дерева */
+@media (max-width: 768px) {
+  #tree,
+  #tree svg {
+    width: 100% !important;
+    height: 800px !important;
+    min-width: 1000px !important;
+  }
+}
