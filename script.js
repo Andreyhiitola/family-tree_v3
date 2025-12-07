@@ -1457,3 +1457,223 @@ setTimeout(() => {
     }
 }, 2000);
 
+// ============ ВОССТАНОВЛЕНИЕ ФУНКЦИОНАЛА САЙДБАРА ============
+
+// 1. Обновление панели "Текущий корень"
+function updateCurrentRootPanel(node) {
+    const nameEl = document.getElementById('current-root-name');
+    const detailsEl = document.getElementById('current-root-details');
+    
+    if (node && node.data) {
+        const data = node.data;
+        nameEl.textContent = data.name || 'Без имени';
+        
+        // Формируем детали
+        const details = [];
+        if (data.gender) details.push(data.gender === 'M' ? 'Мужчина' : 'Женщина');
+        if (data.birthDate) details.push(`Род. ${data.birthDate}`);
+        if (data.children && data.children.length > 0) {
+            details.push(`${data.children.length} детей`);
+        }
+        
+        detailsEl.textContent = details.join(', ');
+        
+        // Подсвечиваем панель
+        const panel = document.querySelector('.current-root-section');
+        panel.style.borderColor = '#3498db';
+    } else {
+        nameEl.textContent = 'Не выбран';
+        detailsEl.textContent = 'Кликните на узел в дереве';
+    }
+}
+
+// 2. Инициализация управления деревом
+function initTreeControls() {
+    // Масштаб
+    const zoomSlider = document.getElementById('zoom-slider');
+    const zoomValue = document.getElementById('zoom-value');
+    const zoomInBtn = document.getElementById('zoom-in-btn');
+    const zoomOutBtn = document.getElementById('zoom-out-btn');
+    const zoomResetBtn = document.getElementById('zoom-reset-btn');
+    
+    let currentZoom = 100;
+    
+    function updateZoom(value) {
+        currentZoom = value;
+        zoomValue.textContent = value + '%';
+        zoomSlider.value = value;
+        
+        // Применяем масштаб к дереву
+        const svg = d3.select('#tree svg');
+        const g = svg.select('g');
+        if (!g.empty()) {
+            g.attr('transform', `scale(${value / 100})`);
+        }
+    }
+    
+    zoomSlider.addEventListener('input', (e) => {
+        updateZoom(parseInt(e.target.value));
+    });
+    
+    zoomInBtn.addEventListener('click', () => {
+        updateZoom(Math.min(currentZoom + 10, 200));
+    });
+    
+    zoomOutBtn.addEventListener('click', () => {
+        updateZoom(Math.max(currentZoom - 10, 50));
+    });
+    
+    zoomResetBtn.addEventListener('click', () => {
+        updateZoom(100);
+    });
+    
+    // Ориентация
+    const orientationSelect = document.getElementById('orientation-select');
+    orientationSelect.addEventListener('change', (e) => {
+        console.log('Смена ориентации на:', e.target.value);
+        // Здесь будет код перестроения дерева
+        // rebuildTree(e.target.value);
+    });
+    
+    // Размер узлов
+    const nodeSizeSlider = document.getElementById('node-size-slider');
+    const nodeSizeValue = document.getElementById('node-size-value');
+    
+    nodeSizeSlider.addEventListener('input', (e) => {
+        const size = parseInt(e.target.value);
+        nodeSizeValue.textContent = size + 'px';
+        
+        // Обновляем размер узлов в дереве
+        d3.selectAll('#tree circle').attr('r', size);
+    });
+    
+    // Кнопки текущего корня
+    document.getElementById('reset-root-btn').addEventListener('click', () => {
+        console.log('Сброс к исходному корню');
+        // resetToOriginalRoot();
+        updateCurrentRootPanel(null);
+    });
+    
+    document.getElementById('center-tree-btn').addEventListener('click', () => {
+        console.log('Центрирование дерева');
+        // centerTree();
+    });
+}
+
+// 3. Связываем клики по дереву с обновлением панели
+function setupTreeNodeClickHandler() {
+    // Эта функция должна вызываться после построения дерева
+    d3.selectAll('#tree circle, #tree text')
+        .on('click', function(event, d) {
+            // Обновляем панель
+            updateCurrentRootPanel(d);
+            
+            // Подсвечиваем выбранный узел
+            d3.selectAll('#tree circle').attr('fill', '#ccc');
+            d3.select(this).attr('fill', '#3498db');
+        });
+}
+
+// 4. Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Инициализация сайдбара...');
+    
+    // Ждем пока дерево построится
+    setTimeout(() => {
+        initTreeControls();
+        setupTreeNodeClickHandler();
+        
+        // Устанавливаем начальное значение для текущего корня
+        const rootData = window.treeData || { name: 'Иван Иванов', gender: 'M' };
+        updateCurrentRootPanel({ data: rootData });
+        
+        console.log('Сайдбар инициализирован');
+    }, 500);
+});
+
+// 5. Обновляем статистику (если нужно)
+function updateStatistics() {
+    // Ваш код обновления статистики
+    // document.getElementById('person-count').textContent = total;
+    // document.getElementById('male-count').textContent = males;
+    // и т.д.
+}
+function createMissingElements() {
+    console.log('Создание недостающих элементов управления...');
+    
+    const sidebar = document.querySelector('.sidebar');
+    if (!sidebar) {
+        console.error('Сайдбар не найден!');
+        return;
+    }
+    
+    // Проверяем и создаем текущий корень
+    if (!document.getElementById('current-root-name')) {
+        const currentRootHTML = `
+            <div class="sidebar-section current-root-section">
+                <h3><i class="fas fa-tree"></i> Текущий корень</h3>
+                <div class="current-root-info">
+                    <div id="current-root-display" class="current-root-display">
+                        <strong id="current-root-name">Иван Иванов</strong>
+                        <small id="current-root-details">Родоначальник, 3 поколения</small>
+                    </div>
+                    <div class="current-root-controls">
+                        <button id="reset-root-btn" class="btn btn-small">
+                            <i class="fas fa-home"></i> К исходному
+                        </button>
+                        <button id="center-tree-btn" class="btn btn-small">
+                            <i class="fas fa-crosshairs"></i> Центрировать
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Вставляем после поиска
+        const searchContainer = sidebar.querySelector('.search-container');
+        if (searchContainer) {
+            searchContainer.insertAdjacentHTML('afterend', currentRootHTML);
+        }
+    }
+    
+    // Проверяем и создаем управление деревом
+    if (!document.getElementById('zoom-slider')) {
+        const treeControlsHTML = `
+            <div class="sidebar-section tree-controls-section">
+                <h3><i class="fas fa-sliders-h"></i> Управление деревом</h3>
+                <div class="control-group">
+                    <label for="zoom-slider">Масштаб: <span id="zoom-value">100%</span></label>
+                    <input type="range" id="zoom-slider" min="50" max="200" value="100">
+                    <div class="zoom-buttons">
+                        <button id="zoom-out-btn" class="btn-icon"><i class="fas fa-search-minus"></i></button>
+                        <button id="zoom-reset-btn" class="btn-small">Сброс</button>
+                        <button id="zoom-in-btn" class="btn-icon"><i class="fas fa-search-plus"></i></button>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label for="orientation-select">Ориентация:</label>
+                    <select id="orientation-select" class="form-control">
+                        <option value="horizontal">Горизонтальная</option>
+                        <option value="vertical">Вертикальная</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="node-size-slider">Размер узлов: <span id="node-size-value">10px</span></label>
+                    <input type="range" id="node-size-slider" min="5" max="20" value="10">
+                </div>
+            </div>
+        `;
+        
+        // Вставляем после текущего корня
+        const currentRootSection = sidebar.querySelector('.current-root-section');
+        if (currentRootSection) {
+            currentRootSection.insertAdjacentHTML('afterend', treeControlsHTML);
+        }
+    }
+    
+    console.log('Элементы созданы, повторная инициализация...');
+    setTimeout(initTreeControls, 100);
+}
+
+// Запустите в консоли если нужно
+// createMissingElements();
