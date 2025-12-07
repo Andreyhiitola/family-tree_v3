@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Тест данных</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { margin: 5px; padding: 10px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+    </style>
+</head>
+<body>
+    <h1>Тестирование данных семейного дерева</h1>
+    
+    <div id="file-status" style="margin-bottom: 20px;"></div>
+    
+    <div>
+        <button onclick="loadData('data_mini.json')">Загрузить мини-данные (5 чел)</button>
+        <button onclick="loadData('data.json')">Загрузить полные данные (15 чел)</button>
+        <button onclick="clearData()">Очистить данные</button>
+        <button onclick="checkFiles()">Проверить файлы</button>
+    </div>
+    
+    <div id="result" style="margin-top: 20px;"></div>
+    
+    <script>
+        async function checkFiles() {
+            const files = ['data.json', 'data_mini.json'];
+            const statusDiv = document.getElementById('file-status');
+            let html = '<h3>Статус файлов:</h3>';
+            
+            for (const file of files) {
+                try {
+                    const response = await fetch(file);
+                    if (response.ok) {
+                        html += `<p class="success">✅ ${file} - найден</p>`;
+                    } else {
+                        html += `<p class="error">❌ ${file} - не найден (${response.status})</p>`;
+                    }
+                } catch (error) {
+                    html += `<p class="error">❌ ${file} - ошибка: ${error.message}</p>`;
+                }
+            }
+            
+            // Проверяем LocalStorage
+            const hasData = localStorage.getItem('familyTreeData');
+            html += `<p class="${hasData ? 'success' : 'warning'}">${hasData ? '✅' : '⚠️'} LocalStorage: ${hasData ? 'есть данные' : 'нет данных'}</p>`;
+            
+            statusDiv.innerHTML = html;
+        }
+        
+        async function loadData(filename) {
+            try {
+                const response = await fetch(filename);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const data = await response.json();
+                localStorage.setItem('familyTreeData', JSON.stringify(data));
+                document.getElementById('result').innerHTML = `
+                    <h3 class="success">✅ Данные "${filename}" загружены</h3>
+                    <p>Количество людей: ${data.people.length}</p>
+                    <p><a href="/">Перейти на главную страницу</a> (обновите её после загрузки)</p>
+                    <pre>${JSON.stringify(data, null, 2).substring(0, 1000)}...</pre>
+                `;
+                checkFiles(); // Обновляем статус
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <h3 class="error">❌ Ошибка загрузки ${filename}</h3>
+                    <p><strong>${error.message}</strong></p>
+                    <p>Проверьте:</p>
+                    <ul>
+                        <li>Существует ли файл ${filename} на сервере</li>
+                        <li>Запущен ли сервер на порту 8760</li>
+                        <li>Находится ли файл в корневой директории сервера</li>
+                    </ul>
+                    <button onclick="checkFiles()">Проверить файлы</button>
+                `;
+            }
+        }
+        
+        function clearData() {
+            localStorage.removeItem('familyTreeData');
+            document.getElementById('result').innerHTML = `
+                <h3 class="warning">🗑️ Данные очищены</h3>
+                <p>При следующей загрузке будут использованы демо-данные из скрипта</p>
+            `;
+            checkFiles();
+        }
+        
+        // Автопроверка при загрузке страницы
+        window.onload = checkFiles;
+    </script>
+</body>
+</html>

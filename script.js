@@ -3,6 +3,8 @@ class FamilyTree {
         this.data = { people: [] };
         this.selectedPerson = null;
         this.treeData = null;
+        this.svg = null;
+        this.treeNodes = null;
         this.init();
     }
 
@@ -33,15 +35,36 @@ class FamilyTree {
     createDemoData() {
         this.data = {
             people: [
-                { id: '1', name: 'Иван', surname: 'Иванов', gender: 'M', 
-                  birthDate: '1950-01-01', deathDate: '', 
-                  fatherId: null, motherId: null },
-                { id: '2', name: 'Мария', surname: 'Иванова', gender: 'F', 
-                  birthDate: '1955-02-02', deathDate: '', 
-                  fatherId: null, motherId: null },
-                { id: '3', name: 'Алексей', surname: 'Иванов', gender: 'M', 
-                  birthDate: '1980-03-03', deathDate: '', 
-                  fatherId: '1', motherId: '2' }
+                { 
+                    id: '1', 
+                    name: 'Иван', 
+                    surname: 'Иванов', 
+                    gender: 'M', 
+                    birthDate: '1950-01-01', 
+                    deathDate: '', 
+                    fatherId: null, 
+                    motherId: null 
+                },
+                { 
+                    id: '2', 
+                    name: 'Мария', 
+                    surname: 'Иванова', 
+                    gender: 'F', 
+                    birthDate: '1955-02-02', 
+                    deathDate: '', 
+                    fatherId: null, 
+                    motherId: null 
+                },
+                { 
+                    id: '3', 
+                    name: 'Алексей', 
+                    surname: 'Иванов', 
+                    gender: 'M', 
+                    birthDate: '1980-03-03', 
+                    deathDate: '', 
+                    fatherId: '1', 
+                    motherId: '2' 
+                }
             ]
         };
         this.saveToLocalStorage();
@@ -73,11 +96,109 @@ class FamilyTree {
 
     setupSearch() {
         const searchInput = document.getElementById('search');
-        if (!searchInput) return;
+        const searchResults = document.getElementById('search-results');
+        
+        if (!searchInput || !searchResults) return;
+        
+        let searchTimeout;
         
         searchInput.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            console.log('Поиск:', query);
+            const query = e.target.value.trim();
+            
+            // Очищаем предыдущий таймаут
+            clearTimeout(searchTimeout);
+            
+            if (query.length < 2) {
+                searchResults.innerHTML = '';
+                searchResults.style.display = 'none';
+                return;
+            }
+            
+            // Задержка перед поиском (дебаунс)
+            searchTimeout = setTimeout(() => {
+                this.performSearch(query);
+            }, 300);
+        });
+        
+        // Поиск при нажатии Enter
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const query = searchInput.value.trim();
+                if (query.length >= 2) {
+                    this.performSearch(query);
+                }
+            }
+        });
+        
+        // Закрытие результатов при клике вне
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.style.display = 'none';
+            }
+        });
+    }
+    
+    performSearch(query) {
+        const searchResults = document.getElementById('search-results');
+        if (!searchResults) return;
+        
+        const lowercaseQuery = query.toLowerCase().trim();
+        
+        // Поиск по имени, фамилии или ID
+        const results = this.data.people.filter(person => {
+            const fullName = `${person.name || ''} ${person.surname || ''}`.toLowerCase();
+            const fullNameReversed = `${person.surname || ''} ${person.name || ''}`.toLowerCase();
+            const personId = String(person.id || '').toLowerCase();
+            
+            return fullName.includes(lowercaseQuery) ||
+                   fullNameReversed.includes(lowercaseQuery) ||
+                   personId.includes(lowercaseQuery);
+        });
+        
+        this.showSearchResults(results);
+    }
+    
+    showSearchResults(results) {
+        const searchResults = document.getElementById('search-results');
+        if (!searchResults) return;
+        
+        if (results.length === 0) {
+            searchResults.innerHTML = `
+                <div class="search-result-item no-results">
+                    <i class="fas fa-search"></i>
+                    <span>Ничего не найдено</span>
+                </div>`;
+            searchResults.style.display = 'block';
+            return;
+        }
+        
+        searchResults.innerHTML = results.map(person => `
+            <div class="search-result-item" data-id="${String(person.id)}">
+                <i class="fas fa-${person.gender === 'M' ? 'male' : 'female'} ${person.gender === 'M' ? 'male-icon' : 'female-icon'}"></i>
+                <div class="search-result-info">
+                    <div class="search-result-name">${person.name || ''} ${person.surname || ''}</div>
+                    <div class="search-result-details">
+                        <small>ID: ${String(person.id)}</small>
+                        ${person.birthDate ? `<small>• Род. ${person.birthDate}</small>` : ''}
+                    </div>
+                </div>
+                <i class="fas fa-chevron-right"></i>
+            </div>
+        `).join('');
+        
+        searchResults.style.display = 'block';
+        
+        // Обработчики кликов
+        searchResults.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const personId = item.dataset.id;
+                this.selectPerson(personId);
+                this.buildTree(personId);
+                
+                // Очищаем поиск
+                document.getElementById('search').value = '';
+                searchResults.style.display = 'none';
+            });
         });
     }
 
@@ -312,37 +433,180 @@ class FamilyTree {
     // Метод для выбора человека
     selectPerson(personId) {
         this.selectedPerson = personId;
-        this.showNotification(`Выбран: ${personId}`, 'info');
+        this.highlightSelectedNode();
     }
 
-    buildTree() {
-        console.log('Построение дерева');
+    buildTree(personId = null) {
+        console.log('Построение дерева с D3.js');
         const treeContainer = document.getElementById('tree');
         if (!treeContainer) return;
+        
+        // Очищаем контейнер
+        treeContainer.innerHTML = '';
         
         if (!window.d3) {
             treeContainer.innerHTML = `
                 <div style="text-align: center; padding: 50px;">
-                    <h3>D3.js не загружена</h3>
-                    <p>Проверьте подключение к интернету и обновите страницу</p>
+                    <h3><i class="fas fa-exclamation-triangle"></i> D3.js не загружена</h3>
+                    <p>Проверьте подключение к интернету</p>
+                    <button onclick="window.location.reload()" class="btn btn-primary">
+                        <i class="fas fa-redo"></i> Обновить страницу
+                    </button>
                 </div>`;
             return;
         }
         
-        // Простое дерево для демонстрации
-        treeContainer.innerHTML = `
-            <div style="text-align: center; padding: 50px;">
-                <h3>Дерево загружено</h3>
-                <p>Количество людей: ${this.data.people.length}</p>
-                <div style="margin-top: 20px;">
-                    ${this.data.people.map(p => 
-                        `<div style="margin: 10px; padding: 10px; background: #f0f0f0; border-radius: 4px; cursor: pointer;" 
-                              onclick="window.familyTree.selectPerson('${p.id}')">
-                            ${p.name} ${p.surname} (${p.gender === 'M' ? '♂' : '♀'})
-                        </div>`
-                    ).join('')}
-                </div>
-            </div>`;
+        if (this.data.people.length === 0) {
+            treeContainer.innerHTML = `
+                <div style="text-align: center; padding: 50px; color: #666;">
+                    <h3><i class="fas fa-tree"></i> Нет данных</h3>
+                    <p>Добавьте людей в дерево</p>
+                    <button onclick="window.familyTree.openAddPersonModal()" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Добавить первого человека
+                    </button>
+                </div>`;
+            return;
+        }
+        
+        // Определяем корневого человека
+        let rootPersonId = personId;
+        if (!rootPersonId) {
+            const rootPeople = this.data.people.filter(p => !p.fatherId && !p.motherId);
+            if (rootPeople.length > 0) {
+                rootPersonId = rootPeople[0].id;
+            } else {
+                rootPersonId = this.data.people[0].id;
+            }
+        }
+        
+        // Строим иерархию данных
+        const treeData = this.buildHierarchy(rootPersonId);
+        if (!treeData) {
+            treeContainer.innerHTML = `
+                <div style="text-align: center; padding: 50px;">
+                    <h3>Ошибка построения дерева</h3>
+                </div>`;
+            return;
+        }
+        
+        // Размеры контейнера
+        const width = treeContainer.clientWidth || 800;
+        const height = treeContainer.clientHeight || 600;
+        
+        // Создаем SVG
+        const svg = d3.select('#tree')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .append('g')
+            .attr('transform', `translate(${width/2}, 50)`);
+        
+        // Создаем макет дерева
+        const treeLayout = d3.tree()
+            .size([height - 100, width - 200]);
+        
+        // Создаем иерархию для D3
+        const root = d3.hierarchy(treeData);
+        const treeNodes = treeLayout(root);
+        
+        // Рисуем связи
+        svg.selectAll('.link')
+            .data(treeNodes.links())
+            .enter()
+            .append('path')
+            .attr('class', 'link')
+            .attr('d', d3.linkHorizontal()
+                .x(d => d.y)
+                .y(d => d.x))
+            .attr('fill', 'none')
+            .attr('stroke', '#ccc')
+            .attr('stroke-width', 2);
+        
+        // Рисуем узлы
+        const node = svg.selectAll('.node')
+            .data(treeNodes.descendants())
+            .enter()
+            .append('g')
+            .attr('class', d => `node ${d.data.gender} ${d.data.id === this.selectedPerson ? 'selected' : ''}`)
+            .attr('transform', d => `translate(${d.y},${d.x})`)
+            .on('click', (event, d) => {
+                this.selectPerson(d.data.id);
+                this.highlightSelectedNode();
+            });
+        
+        // Круги узлов
+        node.append('circle')
+            .attr('r', 25)
+            .attr('fill', d => d.data.gender === 'M' ? '#4A90E2' : '#E24A8E')
+            .attr('stroke', d => d.data.id === this.selectedPerson ? '#FFD700' : '#fff')
+            .attr('stroke-width', d => d.data.id === this.selectedPerson ? 4 : 3);
+        
+        // Имена в узлах
+        node.append('text')
+            .attr('dy', '.31em')
+            .attr('text-anchor', 'middle')
+            .attr('fill', 'white')
+            .style('font-size', '12px')
+            .style('font-weight', 'bold')
+            .text(d => d.data.name.split(' ')[0]);
+        
+        // Полная информация при наведении
+        node.append('title')
+            .text(d => `${d.data.name}\n${d.data.gender === 'M' ? '♂ Мужской' : '♀ Женский'}`);
+        
+        // Сохраняем ссылки для обновления
+        this.svg = svg;
+        this.treeNodes = treeNodes;
+        
+        console.log('Дерево построено:', treeData);
+    }
+    
+    buildHierarchy(personId, visited = new Set()) {
+        if (visited.has(personId)) return null;
+        visited.add(personId);
+        
+        const person = this.data.people.find(p => p.id === personId);
+        if (!person) return null;
+        
+        const node = {
+            id: person.id,
+            name: `${person.name} ${person.surname}`,
+            gender: person.gender,
+            children: []
+        };
+        
+        // Находим детей (у которых этот человек является отцом или матерью)
+        const children = this.data.people.filter(p => 
+            p.fatherId === personId || p.motherId === personId
+        );
+        
+        for (const child of children) {
+            const childNode = this.buildHierarchy(child.id, visited);
+            if (childNode) {
+                node.children.push(childNode);
+            }
+        }
+        
+        return node;
+    }
+    
+    highlightSelectedNode() {
+        if (!this.svg) return;
+        
+        // Обновляем выделение
+        this.svg.selectAll('.node')
+            .attr('class', d => `node ${d.data.gender} ${d.data.id === this.selectedPerson ? 'selected' : ''}`)
+            .select('circle')
+            .attr('stroke', d => d.data.id === this.selectedPerson ? '#FFD700' : '#fff')
+            .attr('stroke-width', d => d.data.id === this.selectedPerson ? 4 : 3);
+        
+        // Показываем информацию о выбранном человеке
+        if (this.selectedPerson) {
+            const person = this.data.people.find(p => p.id === this.selectedPerson);
+            if (person) {
+                this.showNotification(`Выбран: ${person.name} ${person.surname}`, 'info');
+            }
+        }
     }
 
     updateStats() {
@@ -350,7 +614,7 @@ class FamilyTree {
             'person-count': this.data.people.length,
             'male-count': this.data.people.filter(p => p.gender === 'M').length,
             'female-count': this.data.people.filter(p => p.gender === 'F').length,
-            'generation-count': 1 // упрощенная версия
+            'generation-count': this.calculateGenerations()
         };
         
         Object.entries(elements).forEach(([id, value]) => {
@@ -359,6 +623,45 @@ class FamilyTree {
                 element.textContent = value;
             }
         });
+    }
+    
+    calculateGenerations() {
+        if (this.data.people.length === 0) return 0;
+        
+        let maxDepth = 0;
+        const visited = new Set();
+        
+        const calculateDepth = (personId, currentDepth) => {
+            if (visited.has(personId)) return;
+            visited.add(personId);
+            
+            maxDepth = Math.max(maxDepth, currentDepth);
+            
+            const person = this.data.people.find(p => p.id === personId);
+            if (!person) return;
+            
+            // Находим детей
+            const children = this.data.people.filter(p => 
+                p.fatherId === personId || p.motherId === personId
+            );
+            
+            for (const child of children) {
+                calculateDepth(child.id, currentDepth + 1);
+            }
+        };
+        
+        // Начинаем с людей без родителей
+        const rootPeople = this.data.people.filter(p => !p.fatherId && !p.motherId);
+        if (rootPeople.length === 0) {
+            // Если все имеют родителей, берем первого
+            calculateDepth(this.data.people[0].id, 1);
+        } else {
+            for (const root of rootPeople) {
+                calculateDepth(root.id, 1);
+            }
+        }
+        
+        return maxDepth;
     }
 }
 
