@@ -1,348 +1,385 @@
-// navigation.js - Функционал навигации и перестройки дерева
+// navigation.js - Упрощенный модуль навигации
 
-// Ждем загрузки страницы
-document.addEventListener('DOMContentLoaded', function() {
-    // Ждем создания экземпляра FamilyTree
-    const checkFamilyTree = setInterval(function() {
+(function() {
+    'use strict';
+    
+    console.log('=== НАВИГАЦИЯ ПО ДЕРЕВУ ===');
+    
+    // Ожидаем загрузки FamilyTree
+    let initAttempts = 0;
+    const maxAttempts = 30;
+    
+    function waitForFamilyTree() {
         if (window.familyTree && window.familyTree.data && window.familyTree.data.people) {
-            clearInterval(checkFamilyTree);
-            initTreeNavigation();
+            console.log('FamilyTree найден, запускаю навигацию');
+            initNavigation();
+        } else if (initAttempts < maxAttempts) {
+            initAttempts++;
+            setTimeout(waitForFamilyTree, 500);
+        } else {
+            console.warn('FamilyTree не найден за', maxAttempts * 500, 'мс');
         }
-    }, 100);
-});
-
-// Инициализация навигации
-function initTreeNavigation() {
-    console.log('Инициализация навигации по дереву...');
-    
-    if (!window.familyTree || !window.familyTree.data) {
-        console.error('FamilyTree не инициализирован');
-        return;
     }
     
-    // Добавляем CSS стили
-    addStyles();
+    function initNavigation() {
+        console.log('Инициализация навигации...');
+        
+        // 1. Создаем простые панели
+        createPanels();
+        
+        // 2. Обновляем данные
+        updateAllPanels();
+        
+        // 3. Добавляем обработчики
+        setupHandlers();
+        
+        console.log('Навигация готова');
+        
+        // Показываем уведомление
+        showMessage('Навигация по дереву активна', 'info');
+    }
     
-    // Создаем UI элементы
-    createPersonSelector();
-    createCurrentRootInfo();
-    createTreeStatistics();
-    
-    // Добавляем обработчики
-    addNodeClickHandlers();
-    addGlobalShortcuts();
-    
-    console.log('Навигация по дереву инициализирована');
-}
-
-// Создание селектора персонажей
-function createPersonSelector() {
-    const oldSelector = document.getElementById('person-selector');
-    if (oldSelector) oldSelector.remove();
-    
-    const selectorDiv = document.createElement('div');
-    selectorDiv.id = 'person-selector';
-    selectorDiv.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: white;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        z-index: 1000;
-        max-width: 300px;
-        max-height: 400px;
-        overflow-y: auto;
-        border: 2px solid #2196F3;
-    `;
-    
-    selectorDiv.innerHTML = `
-        <h4 style="margin-top: 0; color: #333;">Выберите человека:</h4>
-        <input type="text" id="person-search" placeholder="Поиск по имени..." 
-               style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px;">
-        <div id="person-list" style="max-height: 300px; overflow-y: auto;"></div>
-    `;
-    
-    document.body.appendChild(selectorDiv);
-    updatePersonList();
-    
-    // Поиск
-    document.getElementById('person-search').addEventListener('input', function(e) {
-        updatePersonList(e.target.value);
-    });
-}
-
-// Обновление списка людей
-function updatePersonList(searchTerm = '') {
-    const personList = document.getElementById('person-list');
-    if (!personList || !window.familyTree || !window.familyTree.data) return;
-    
-    const filteredPeople = window.familyTree.data.people.filter(person => {
-        if (!searchTerm) return true;
-        const fullName = `${person.name} ${person.surname}`.toLowerCase();
-        return fullName.includes(searchTerm.toLowerCase());
-    });
-    
-    personList.innerHTML = filteredPeople.map(person => `
-        <div class="person-item" data-person-id="${person.id}" 
-             style="padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;
-                    background: ${person.gender === 'M' ? '#e6f3ff' : '#ffe6f2'};
-                    transition: all 0.2s ease;">
-            <strong>${person.name} ${person.surname}</strong>
-            <div style="font-size: 12px; color: #666;">
-                ID: ${person.id} | ${person.gender === 'M' ? '♂' : '♀'}
-                ${person.birthDate ? `| Род. ${person.birthDate}` : ''}
+    function createPanels() {
+        // Панель выбора человека (справа вверху)
+        const selectorPanel = document.createElement('div');
+        selectorPanel.id = 'nav-selector';
+        selectorPanel.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h4 style="margin: 0;">Выбор человека</h4>
+                <button id="nav-hide-btn" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
             </div>
-        </div>
-    `).join('');
+            <input type="text" id="nav-search" placeholder="Поиск по имени..." 
+                   style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;">
+            <div id="nav-list" style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; padding: 5px;"></div>
+        `;
+        
+        selectorPanel.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 10000;
+            border: 2px solid #2196F3;
+        `;
+        
+        document.body.appendChild(selectorPanel);
+        
+        // Панель текущего корня (слева вверху)
+        const rootPanel = document.createElement('div');
+        rootPanel.id = 'nav-current';
+        rootPanel.innerHTML = `
+            <h4 style="margin-top: 0;">Текущий корень</h4>
+            <div id="nav-root-info" style="padding: 10px; background: #f5f5f5; border-radius: 4px; margin-bottom: 10px;">
+                Полное дерево
+            </div>
+            <button id="nav-reset-btn" style="width: 100%; padding: 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Показать всё дерево
+            </button>
+        `;
+        
+        rootPanel.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 250px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 9999;
+            border: 2px solid #4CAF50;
+        `;
+        
+        document.body.appendChild(rootPanel);
+        
+        // Панель статистики (справа внизу)
+        const statsPanel = document.createElement('div');
+        statsPanel.id = 'nav-stats';
+        statsPanel.innerHTML = `
+            <h4 style="margin-top: 0;">Статистика</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 12px; color: #666;">Всего</div>
+                    <div id="nav-total" style="font-size: 24px; font-weight: bold;">0</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 12px; color: #666;">Мужчин</div>
+                    <div id="nav-males" style="font-size: 24px; font-weight: bold; color: #2196F3;">0</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 12px; color: #666;">Женщин</div>
+                    <div id="nav-females" style="font-size: 24px; font-weight: bold; color: #E91E63;">0</div>
+                </div>
+            </div>
+            <div style="font-size: 12px; color: #666; border-top: 1px solid #eee; padding-top: 10px;">
+                <strong>Подсказки:</strong><br>
+                • Кликните на человека в дереве<br>
+                • Используйте поиск справа<br>
+                • Esc - сброс к полному дереву
+            </div>
+        `;
+        
+        statsPanel.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 9998;
+            border: 2px solid #9C27B0;
+        `;
+        
+        document.body.appendChild(statsPanel);
+    }
     
-    // Обработчики кликов
-    document.querySelectorAll('.person-item').forEach(item => {
-        item.addEventListener('click', function() {
-            const personId = this.dataset.personId;
-            rebuildTreeFromPerson(personId);
+    function updateAllPanels() {
+        updatePersonList();
+        updateStatistics();
+    }
+    
+    function updatePersonList(searchTerm = '') {
+        const list = document.getElementById('nav-list');
+        if (!list || !window.familyTree || !window.familyTree.data) return;
+        
+        const people = window.familyTree.data.people;
+        const filtered = searchTerm ? 
+            people.filter(p => 
+                `${p.name} ${p.surname}`.toLowerCase().includes(searchTerm.toLowerCase())
+            ) : people;
+        
+        if (filtered.length === 0) {
+            list.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">Ничего не найдено</div>';
+            return;
+        }
+        
+        list.innerHTML = filtered.map(person => `
+            <div class="person-item" data-id="${person.id}" 
+                 style="padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;
+                        background: ${person.gender === 'M' ? '#e3f2fd' : '#fce4ec'};
+                        transition: all 0.2s;">
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 30px; height: 30px; border-radius: 50%; background: ${person.gender === 'M' ? '#2196F3' : '#E91E63'}; 
+                         color: white; display: flex; align-items: center; justify-content: center; margin-right: 10px;">
+                        ${person.gender === 'M' ? '♂' : '♀'}
+                    </div>
+                    <div>
+                        <strong>${person.name} ${person.surname}</strong><br>
+                        <small style="color: #666;">ID: ${person.id}</small>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        // Добавляем обработчики кликов
+        list.querySelectorAll('.person-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const personId = this.dataset.id;
+                selectPerson(personId);
+            });
         });
-    });
-}
-
-// Перестройка дерева от выбранного человека
-function rebuildTreeFromPerson(personId) {
-    console.log('Перестраиваю дерево от человека:', personId);
-    
-    if (!window.familyTree || !window.familyTree.data) {
-        console.error('FamilyTree не инициализирован');
-        return;
     }
     
-    const selectedPerson = window.familyTree.data.people.find(p => p.id === personId);
-    if (!selectedPerson) {
-        console.error('Человек не найден:', personId);
-        return;
+    function updateStatistics() {
+        if (!window.familyTree || !window.familyTree.data) return;
+        
+        const people = window.familyTree.data.people;
+        const total = people.length;
+        const males = people.filter(p => p.gender === 'M').length;
+        const females = people.filter(p => p.gender === 'F').length;
+        
+        const totalEl = document.getElementById('nav-total');
+        const malesEl = document.getElementById('nav-males');
+        const femalesEl = document.getElementById('nav-females');
+        
+        if (totalEl) totalEl.textContent = total;
+        if (malesEl) malesEl.textContent = males;
+        if (femalesEl) femalesEl.textContent = females;
     }
     
-    // Вызываем метод FamilyTree
-    window.familyTree.selectPerson(personId);
-    window.familyTree.buildTree(personId);
-    
-    // Обновляем информацию
-    updateCurrentRootInfo(selectedPerson);
-    
-    // Выделяем выбранный узел
-    highlightSelectedNode();
-}
-
-// Создание информации о текущем корне
-function createCurrentRootInfo() {
-    const infoDiv = document.createElement('div');
-    infoDiv.id = 'current-root-info';
-    infoDiv.style.cssText = `
-        position: fixed;
-        top: 20px;
-        left: 20px;
-        background: white;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        z-index: 1000;
-        max-width: 300px;
-        border: 2px solid #4CAF50;
-        display: none;
-    `;
-    
-    document.body.appendChild(infoDiv);
-}
-
-// Обновление информации о текущем корне
-function updateCurrentRootInfo(person) {
-    const infoDiv = document.getElementById('current-root-info');
-    if (!infoDiv) return;
-    
-    infoDiv.style.display = 'block';
-    infoDiv.innerHTML = `
-        <h4 style="margin-top: 0; color: #333;">Текущее дерево построено от:</h4>
-        <div style="padding: 10px; background: ${person.gender === 'M' ? '#e6f3ff' : '#ffe6f2'}; border-radius: 5px;">
-            <p style="margin: 5px 0;"><strong>${person.name} ${person.surname}</strong></p>
-            <p style="margin: 5px 0; font-size: 14px;">Пол: ${person.gender === 'M' ? '♂ Мужской' : '♀ Женский'}</p>
-            ${person.birthDate ? `<p style="margin: 5px 0; font-size: 14px;">Дата рождения: ${person.birthDate}</p>` : ''}
-            ${person.deathDate ? `<p style="margin: 5px 0; font-size: 14px;">Дата смерти: ${person.deathDate}</p>` : ''}
-        </div>
-        <button id="reset-tree-view" class="btn btn-sm btn-outline" style="margin-top: 10px; width: 100%;">
-            Показать всё дерево
-        </button>
-    `;
-    
-    document.getElementById('reset-tree-view').addEventListener('click', resetToFullTree);
-}
-
-// Возврат к полному дереву
-function resetToFullTree() {
-    const infoDiv = document.getElementById('current-root-info');
-    if (infoDiv) infoDiv.style.display = 'none';
-    
-    if (window.familyTree) {
-        window.familyTree.selectedPerson = null;
-        window.familyTree.buildTree();
-    }
-    
-    updatePersonList();
-}
-
-// Создание статистики
-function createTreeStatistics() {
-    const statsDiv = document.createElement('div');
-    statsDiv.id = 'tree-statistics';
-    statsDiv.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: white;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        z-index: 1000;
-        max-width: 250px;
-        border: 2px solid #9C27B0;
-    `;
-    
-    document.body.appendChild(statsDiv);
-    updateTreeStatistics();
-}
-
-// Обновление статистики
-function updateTreeStatistics() {
-    const statsDiv = document.getElementById('tree-statistics');
-    if (!statsDiv || !window.familyTree || !window.familyTree.data) return;
-    
-    const total = window.familyTree.data.people.length;
-    const males = window.familyTree.data.people.filter(p => p.gender === 'M').length;
-    const females = window.familyTree.data.people.filter(p => p.gender === 'F').length;
-    
-    statsDiv.innerHTML = `
-        <h4 style="margin-top: 0; color: #333;">Статистика</h4>
-        <p style="margin: 5px 0;">Всего людей: <strong>${total}</strong></p>
-        <p style="margin: 5px 0;">Мужчин: <strong>${males}</strong></p>
-        <p style="margin: 5px 0;">Женщин: <strong>${females}</strong></p>
-        <hr style="margin: 10px 0;">
-        <p style="margin: 5px 0; font-size: 12px; color: #666;">
-            <strong>Горячие клавиши:</strong><br>
-            Ctrl+F - поиск<br>
-            Alt+S - скрыть панель<br>
-            Esc - сброс
-        </p>
-    `;
-}
-
-// Добавление обработчиков кликов на узлы
-function addNodeClickHandlers() {
-    // Используем делегирование событий
-    document.addEventListener('click', function(event) {
-        const nodeElement = event.target.closest('.node, circle, [data-person-id]');
-        if (nodeElement && nodeElement.classList && nodeElement.classList.contains('node')) {
-            // Находим ID через данные D3
-            const d3Data = d3.select(nodeElement).datum();
-            if (d3Data && d3Data.data && d3Data.data.id) {
-                event.preventDefault();
-                event.stopPropagation();
-                rebuildTreeFromPerson(d3Data.data.id);
-            }
-        }
-    }, true);
-}
-
-// Добавление глобальных горячих клавиш
-function addGlobalShortcuts() {
-    document.addEventListener('keydown', function(e) {
-        // Ctrl+F - поиск
-        if (e.ctrlKey && e.key === 'f') {
-            e.preventDefault();
-            const searchInput = document.getElementById('person-search');
-            if (searchInput) {
-                searchInput.focus();
-                searchInput.select();
-            }
+    function selectPerson(personId) {
+        if (!window.familyTree || !window.familyTree.data) return;
+        
+        const person = window.familyTree.data.people.find(p => p.id === personId);
+        if (!person) return;
+        
+        console.log('Выбран человек:', person.name, person.surname);
+        
+        // 1. Выделяем в дереве
+        if (typeof window.familyTree.selectPerson === 'function') {
+            window.familyTree.selectPerson(personId);
         }
         
-        // Escape - сброс
-        if (e.key === 'Escape') {
-            resetToFullTree();
+        // 2. Перестраиваем дерево от этого человека
+        if (typeof window.familyTree.buildTree === 'function') {
+            window.familyTree.buildTree(personId);
         }
         
-        // Alt+S - скрыть/показать селектор
-        if (e.altKey && e.key === 's') {
-            e.preventDefault();
-            const selector = document.getElementById('person-selector');
-            if (selector) {
-                selector.style.display = selector.style.display === 'none' ? 'block' : 'none';
-            }
+        // 3. Обновляем информацию о корне
+        updateCurrentRoot(person);
+        
+        // 4. Показываем сообщение
+        showMessage(`Дерево перестроено от ${person.name} ${person.surname}`, 'success');
+    }
+    
+    function updateCurrentRoot(person) {
+        const rootInfo = document.getElementById('nav-root-info');
+        if (!rootInfo) return;
+        
+        if (person) {
+            rootInfo.innerHTML = `
+                <div style="margin-bottom: 5px;">
+                    <strong>${person.name} ${person.surname}</strong>
+                </div>
+                <div style="font-size: 12px;">
+                    <span style="color: ${person.gender === 'M' ? '#2196F3' : '#E91E63'};">
+                        ${person.gender === 'M' ? '♂ Мужской' : '♀ Женский'}
+                    </span>
+                    ${person.birthDate ? `<br>Родился: ${person.birthDate}` : ''}
+                </div>
+            `;
+        } else {
+            rootInfo.innerHTML = 'Полное дерево';
         }
-    });
-}
-
-// Выделение выбранного узла
-function highlightSelectedNode() {
-    // Эта функция будет вызываться после перестройки дерева
-    // Сейчас просто обновим список
-    setTimeout(() => {
-        updatePersonList(document.getElementById('person-search')?.value || '');
-    }, 500);
-}
-
-// Добавление CSS стилей
-function addStyles() {
+    }
+    
+    function resetToFullTree() {
+        console.log('Сброс к полному дереву');
+        
+        if (typeof window.familyTree.buildTree === 'function') {
+            window.familyTree.buildTree();
+        }
+        
+        updateCurrentRoot(null);
+        showMessage('Показано полное дерево', 'info');
+    }
+    
+    function setupHandlers() {
+        // Поиск
+        const searchInput = document.getElementById('nav-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                updatePersonList(e.target.value);
+            });
+        }
+        
+        // Кнопка скрытия
+        const hideBtn = document.getElementById('nav-hide-btn');
+        if (hideBtn) {
+            hideBtn.addEventListener('click', function() {
+                const panel = document.getElementById('nav-selector');
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                this.textContent = panel.style.display === 'none' ? '👁' : '×';
+            });
+        }
+        
+        // Кнопка сброса
+        const resetBtn = document.getElementById('nav-reset-btn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', resetToFullTree);
+        }
+        
+        // Горячие клавиши
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+F - поиск
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                const search = document.getElementById('nav-search');
+                if (search) {
+                    search.focus();
+                    search.select();
+                }
+            }
+            
+            // Escape - сброс
+            if (e.key === 'Escape') {
+                resetToFullTree();
+            }
+            
+            // F2 - скрыть/показать панель выбора
+            if (e.key === 'F2') {
+                e.preventDefault();
+                const panel = document.getElementById('nav-selector');
+                if (panel) {
+                    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                }
+            }
+        });
+        
+        // Обработка кликов по узлам дерева
+        document.addEventListener('click', function(e) {
+            // Проверяем, кликнули ли на узел дерева
+            if (e.target.closest('.node') || e.target.closest('circle') || e.target.classList.contains('node')) {
+                const node = e.target.closest('.node') || e.target;
+                const d3Data = d3.select(node).datum();
+                
+                if (d3Data && d3Data.data && d3Data.data.id) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    selectPerson(d3Data.data.id);
+                }
+            }
+        });
+    }
+    
+    function showMessage(text, type = 'info') {
+        // Создаем временное уведомление
+        const msg = document.createElement('div');
+        msg.textContent = text;
+        msg.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : '#2196F3'};
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            z-index: 100000;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: fadeInOut 2s;
+        `;
+        
+        document.body.appendChild(msg);
+        
+        // Автоматически удаляем через 2 секунды
+        setTimeout(() => {
+            msg.style.opacity = '0';
+            msg.style.transition = 'opacity 0.5s';
+            setTimeout(() => msg.remove(), 500);
+        }, 2000);
+    }
+    
+    // Добавляем стили анимации
     const style = document.createElement('style');
     style.textContent = `
-        /* Стили для панелей навигации */
-        #person-selector, #current-root-info, #tree-statistics {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 14px;
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
         }
         
         .person-item:hover {
             background-color: #f0f0f0 !important;
             transform: translateX(5px);
+        }
+        
+        .person-item {
             transition: all 0.2s ease;
         }
-        
-        /* Стили для кнопок */
-        .btn {
-            display: inline-block;
-            padding: 6px 12px;
-            margin: 0;
-            font-size: 14px;
-            font-weight: 400;
-            line-height: 1.42857143;
-            text-align: center;
-            white-space: nowrap;
-            vertical-align: middle;
-            cursor: pointer;
-            border: 1px solid transparent;
-            border-radius: 4px;
-            user-select: none;
-        }
-        
-        .btn-outline {
-            color: #333;
-            background-color: transparent;
-            border: 1px solid #333;
-        }
-        
-        .btn-outline:hover {
-            background-color: #f5f5f5;
-        }
-        
-        .btn-sm {
-            padding: 5px 10px;
-            font-size: 12px;
-            line-height: 1.5;
-            border-radius: 3px;
-        }
     `;
-    
     document.head.appendChild(style);
-}
-
-// Экспорт функций для глобального использования
-window.rebuildTreeFromPerson = rebuildTreeFromPerson;
-window.resetToFullTree = resetToFullTree;
-window.updatePersonList = updatePersonList;
+    
+    // Запускаем ожидание FamilyTree
+    console.log('Ожидание FamilyTree...');
+    waitForFamilyTree();
+    
+})();
