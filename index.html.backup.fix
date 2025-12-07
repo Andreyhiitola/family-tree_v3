@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Семейное дерево</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-tree"></i> Семейное дерево</h1>
+            <div class="header-controls">
+                <button id="add-person" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Добавить человека
+                </button>
+                <button id="edit-person" class="btn btn-secondary">
+                    <i class="fas fa-edit"></i> Редактировать
+                </button>
+                <button id="delete-person" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Удалить
+                </button>
+            </div>
+        </header>
+
+        <div class="main-layout">
+            <aside class="sidebar" style="position: fixed; left: 20px; top: 140px; width: 320px; background: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px solid #dee2e6; z-index: 100;">
+                <!-- 1. Поиск -->
+                <div class="search-container">
+                    <input type="text" id="search" placeholder="Поиск по имени или фамилии...">
+                    <div id="search-results" class="search-results"></div>
+                </div>
+
+                <!-- 2. Статистика -->
+                <div class="stats-container">
+                    <h3><i class="fas fa-chart-bar"></i> Статистика</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <i class="fas fa-users"></i>
+                            <span>Всего людей:</span>
+                            <span id="person-count">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-male"></i>
+                            <span>Мужчин:</span>
+                            <span id="male-count">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-female"></i>
+                            <span>Женщин:</span>
+                            <span id="female-count">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-layer-group"></i>
+                            <span>Поколений:</span>
+                            <span id="generation-count">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Текущий корень -->
+                <div class="sidebar-section current-root-section">
+                    <h3><i class="fas fa-tree"></i> Текущий корень</h3>
+                    <div class="current-root-info">
+                        <div id="current-root-display" class="current-root-display">
+                            <strong id="current-root-name">Не выбран</strong>
+                            <small id="current-root-details">Кликните на узел в дереве</small>
+                        </div>
+                        <div class="current-root-controls">
+                            <button id="reset-root-btn" class="btn btn-small">
+                                <i class="fas fa-home"></i> К исходному
+                            </button>
+                            <button id="center-tree-btn" class="btn btn-small">
+                                <i class="fas fa-crosshairs"></i> Центрировать
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Управление -->
+                <div class="sidebar-controls">
+                    <button id="import-data" class="btn btn-outline">
+                        <i class="fas fa-file-import"></i> Импорт
+                    </button>
+                    <button id="export-data" class="btn btn-outline">
+                        <i class="fas fa-file-export"></i> Экспорт
+                    </button>
+                    <button id="reset-data" class="btn btn-outline">
+                        <i class="fas fa-redo"></i> Сброс
+                    </button>
+                </div>
+            </aside>
+
+            <main class="content" style="margin-left: 360px; width: calc(100% - 380px);">
+                <div id="tree" class="tree-container"></div>
+                <div id="notification" class="notification"></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Модальные окна -->
+    <div id="person-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="form-title">Добавить человека</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="person-form">
+                    <input type="hidden" id="person-id">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="name">Имя *</label>
+                            <input type="text" id="name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="surname">Фамилия *</label>
+                            <input type="text" id="surname" name="surname" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="gender">Пол</label>
+                            <select id="gender" name="gender">
+                                <option value="M">Мужской</option>
+                                <option value="F">Женский</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="birth-date">Дата рождения</label>
+                            <input type="date" id="birth-date" name="birth-date">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="death-date">Дата смерти</label>
+                            <input type="date" id="death-date" name="death-date">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="father-id">Отец (ID)</label>
+                            <input type="text" id="father-id" name="father-id" placeholder="ID отца">
+                        </div>
+                        <div class="form-group">
+                            <label for="mother-id">Мать (ID)</label>
+                            <input type="text" id="mother-id" name="mother-id" placeholder="ID матери">
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                        <button type="button" id="cancel-form" class="btn btn-secondary">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="delete-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Подтверждение удаления</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Вы уверены, что хотите удалить <strong id="delete-person-name"></strong>?</p>
+                <p class="text-warning"><i class="fas fa-exclamation-triangle"></i> Это действие нельзя отменить!</p>
+                <div class="form-actions">
+                    <button id="confirm-delete" class="btn btn-danger">Удалить</button>
+                    <button id="cancel-delete" class="btn btn-secondary">Отмена</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
+    <!-- Подключение скрипта навигации по дереву -->
+    <script src="navigation.js"></script>
+</body>
+</html>
